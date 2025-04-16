@@ -1,5 +1,5 @@
 import { Selectable } from 'kysely';
-import { Exif as DatabaseExif } from 'src/db';
+import { AssetJobStatus as DatabaseAssetJobStatus, Exif as DatabaseExif } from 'src/db';
 import { AssetEntity } from 'src/entities/asset.entity';
 import {
   AlbumUserRole,
@@ -119,6 +119,13 @@ export type UserAdmin = User & {
   quotaUsageInBytes: number;
   status: UserStatus;
   metadata: UserMetadataItem[];
+};
+
+export type StorageAsset = {
+  id: string;
+  ownerId: string;
+  files: AssetFile[];
+  encodedVideoPath: string | null;
 };
 
 export type Asset = {
@@ -249,9 +256,32 @@ export type AssetFace = {
   person?: Person | null;
 };
 
+export type AssetJobStatus = Selectable<DatabaseAssetJobStatus> & {
+  asset: AssetEntity;
+};
+
 const userColumns = ['id', 'name', 'email', 'profileImagePath', 'profileChangedAt'] as const;
 
 export const columns = {
+  asset: [
+    'assets.id',
+    'assets.checksum',
+    'assets.deviceAssetId',
+    'assets.deviceId',
+    'assets.fileCreatedAt',
+    'assets.fileModifiedAt',
+    'assets.isExternal',
+    'assets.isVisible',
+    'assets.libraryId',
+    'assets.livePhotoVideoId',
+    'assets.localDateTime',
+    'assets.originalFileName',
+    'assets.originalPath',
+    'assets.ownerId',
+    'assets.sidecarPath',
+    'assets.type',
+  ],
+  assetFiles: ['asset_files.id', 'asset_files.path', 'asset_files.type'],
   authUser: [
     'users.id',
     'users.name',

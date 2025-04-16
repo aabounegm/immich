@@ -1,17 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Kysely, Selectable, UpdateResult, Updateable, sql } from 'kysely';
-import { jsonArrayFrom } from 'kysely/helpers/postgres';
 import { isEmpty, isUndefined, omitBy } from 'lodash';
 import { InjectKysely } from 'nestjs-kysely';
 import { AssetFiles, AssetJobStatus, Assets, DB, Exif } from 'src/db';
 import { Chunked, ChunkedArray, DummyValue, GenerateSql } from 'src/decorators';
 import {
   AssetEntity,
-  AssetEntityPlaceholder,
   hasPeople,
   searchAssetBuilder,
   truncatedDate,
-  withAlbums,
   withExif,
   withFaces,
   withFacesAndPeople,
@@ -24,7 +21,6 @@ import {
 } from 'src/entities/asset.entity';
 import { AssetFileType, AssetOrder, AssetStatus, AssetType } from 'src/enum';
 import { AssetSearchOptions, SearchExploreItem, SearchExploreItemSet } from 'src/repositories/search.repository';
-import { StorageAsset } from 'src/types';
 import { anyUuid, asUuid, removeUndefinedKeys, unnest } from 'src/utils/database';
 import { globToSqlPattern } from 'src/utils/misc';
 import { Paginated, PaginationOptions, paginationHelper } from 'src/utils/pagination';
@@ -238,12 +234,8 @@ export class AssetRepository {
       .execute();
   }
 
-  create(asset: Insertable<Assets>): Promise<AssetEntityPlaceholder> {
-    return this.db
-      .insertInto('assets')
-      .values(asset)
-      .returningAll()
-      .executeTakeFirst() as any as Promise<AssetEntityPlaceholder>;
+  create(asset: Insertable<Assets>): Promise<AssetEntity> {
+    return this.db.insertInto('assets').values(asset).returningAll().executeTakeFirst() as any as Promise<AssetEntity>;
   }
 
   createAll(assets: Insertable<Assets>[]): Promise<AssetEntity[]> {
@@ -388,16 +380,6 @@ export class AssetRepository {
     await this.db.deleteFrom('assets').where('ownerId', '=', ownerId).execute();
   }
 
-  async getByAlbumId(pagination: PaginationOptions, albumId: string): Paginated<AssetEntity> {
-    const items = await withAlbums(this.db.selectFrom('assets'), { albumId })
-      .selectAll('assets')
-      .where('deletedAt', 'is', null)
-      .orderBy('fileCreatedAt', 'desc')
-      .execute();
-
-    return paginationHelper(items as any as AssetEntity[], pagination.take);
-  }
-
   async getByDeviceIds(ownerId: string, deviceId: string, deviceAssetIds: string[]): Promise<string[]> {
     const assets = await this.db
       .selectFrom('assets')
@@ -457,9 +439,6 @@ export class AssetRepository {
       .where('ownerId', '=', asUuid(ownerId))
       .where('deviceId', '=', deviceId)
       .where('isVisible', '=', true)
-      .where('assets.fileCreatedAt', 'is not', null)
-      .where('assets.fileModifiedAt', 'is not', null)
-      .where('assets.localDateTime', 'is not', null)
       .where('deletedAt', 'is', null)
       .execute();
 
@@ -474,47 +453,6 @@ export class AssetRepository {
       .where('livePhotoVideoId', '=', asUuid(motionId))
       .execute();
     return count;
-  }
-
-  @GenerateSql({ params: [DummyValue.UUID] })
-  getAssetForSearchDuplicatesJob(id: string) {
-    return this.db
-      .selectFrom('assets')
-      .where('assets.id', '=', asUuid(id))
-      .leftJoin('smart_search', 'assets.id', 'smart_search.assetId')
-      .select((eb) => [
-        'id',
-        'type',
-        'ownerId',
-        'duplicateId',
-        'stackId',
-        'isVisible',
-        'smart_search.embedding',
-        withFiles(eb, AssetFileType.PREVIEW),
-      ])
-      .limit(1)
-      .executeTakeFirst();
-  }
-
-  @GenerateSql({ params: [DummyValue.UUID] })
-  getAssetForSidecarWriteJob(id: string) {
-    return this.db
-      .selectFrom('assets')
-      .where('assets.id', '=', asUuid(id))
-      .select((eb) => [
-        'id',
-        'sidecarPath',
-        'originalPath',
-        jsonArrayFrom(
-          eb
-            .selectFrom('tags')
-            .select(['tags.value'])
-            .innerJoin('tag_asset', 'tags.id', 'tag_asset.tagsId')
-            .whereRef('assets.id', '=', 'tag_asset.assetsId'),
-        ).as('tags'),
-      ])
-      .limit(1)
-      .executeTakeFirst();
   }
 
   @GenerateSql({ params: [DummyValue.UUID] })
@@ -656,46 +594,6 @@ export class AssetRepository {
       .executeTakeFirst() as Promise<AssetEntity | undefined>;
   }
 
-  private storageTemplateAssetQuery() {
-    return this.db
-      .selectFrom('assets')
-      .innerJoin('exif', 'assets.id', 'exif.assetId')
-      .select([
-        'assets.id',
-        'assets.ownerId',
-        'assets.type',
-        'assets.checksum',
-        'assets.originalPath',
-        'assets.isExternal',
-        'assets.sidecarPath',
-        'assets.originalFileName',
-        'assets.livePhotoVideoId',
-        'assets.fileCreatedAt',
-        'exif.timeZone',
-        'exif.fileSizeInByte',
-      ])
-      .where('assets.deletedAt', 'is', null)
-      .where('assets.fileCreatedAt', 'is not', null);
-  }
-
-  getStorageTemplateAsset(id: string): Promise<StorageAsset | undefined> {
-    return this.storageTemplateAssetQuery().where('assets.id', '=', id).executeTakeFirst() as Promise<
-      StorageAsset | undefined
-    >;
-  }
-
-  streamStorageTemplateAssets() {
-    return this.storageTemplateAssetQuery().stream() as AsyncIterableIterator<StorageAsset>;
-  }
-
-  streamDeletedAssets(trashedBefore: Date) {
-    return this.db
-      .selectFrom('assets')
-      .select(['id', 'isOffline'])
-      .where('assets.deletedAt', '<=', trashedBefore)
-      .stream();
-  }
-
   @GenerateSql(
     ...Object.values(WithProperty).map((property) => ({
       name: property,
@@ -712,10 +610,7 @@ export class AssetRepository {
           .where('job_status.duplicatesDetectedAt', 'is', null)
           .where('job_status.previewAt', 'is not', null)
           .where((eb) => eb.exists(eb.selectFrom('smart_search').where('assetId', '=', eb.ref('assets.id'))))
-          .where('assets.isVisible', '=', true)
-          .where('assets.fileCreatedAt', 'is not', null)
-          .where('assets.fileModifiedAt', 'is not', null)
-          .where('assets.localDateTime', 'is not', null),
+          .where('assets.isVisible', '=', true),
       )
       .$if(property === WithoutProperty.ENCODED_VIDEO, (qb) =>
         qb
@@ -778,9 +673,6 @@ export class AssetRepository {
       .select((eb) => eb.fn.countAll<number>().filterWhere('type', '=', AssetType.VIDEO).as(AssetType.VIDEO))
       .select((eb) => eb.fn.countAll<number>().filterWhere('type', '=', AssetType.OTHER).as(AssetType.OTHER))
       .where('ownerId', '=', asUuid(ownerId))
-      .where('assets.fileCreatedAt', 'is not', null)
-      .where('assets.fileModifiedAt', 'is not', null)
-      .where('assets.localDateTime', 'is not', null)
       .where('isVisible', '=', true)
       .$if(isArchived !== undefined, (qb) => qb.where('isArchived', '=', isArchived!))
       .$if(isFavorite !== undefined, (qb) => qb.where('isFavorite', '=', isFavorite!))
@@ -813,9 +705,6 @@ export class AssetRepository {
             .$if(!!options.isTrashed, (qb) => qb.where('assets.status', '!=', AssetStatus.DELETED))
             .where('assets.deletedAt', options.isTrashed ? 'is not' : 'is', null)
             .where('assets.isVisible', '=', true)
-            .where('assets.fileCreatedAt', 'is not', null)
-            .where('assets.fileModifiedAt', 'is not', null)
-            .where('assets.localDateTime', 'is not', null)
             .$if(!!options.albumId, (qb) =>
               qb
                 .innerJoin('albums_assets_assets', 'assets.id', 'albums_assets_assets.assetsId')
@@ -860,7 +749,11 @@ export class AssetRepository {
       .selectFrom('assets')
       .selectAll('assets')
       .$call(withExif)
-      .$if(!!options.albumId, (qb) => withAlbums(qb, { albumId: options.albumId }))
+      .$if(!!options.albumId, (qb) =>
+        qb
+          .innerJoin('albums_assets_assets', 'albums_assets_assets.assetsId', 'assets.id')
+          .where('albums_assets_assets.albumsId', '=', options.albumId!),
+      )
       .$if(!!options.personId, (qb) => hasPeople(qb, [options.personId!]))
       .$if(!!options.userIds, (qb) => qb.where('assets.ownerId', '=', anyUuid(options.userIds!)))
       .$if(options.isArchived !== undefined, (qb) => qb.where('assets.isArchived', '=', options.isArchived!))
@@ -1009,9 +902,6 @@ export class AssetRepository {
       .select((eb) => eb.fn.toJson(eb.table('stacked_assets')).as('stack'))
       .where('assets.ownerId', '=', asUuid(ownerId))
       .where('assets.isVisible', '=', true)
-      .where('assets.fileCreatedAt', 'is not', null)
-      .where('assets.fileModifiedAt', 'is not', null)
-      .where('assets.localDateTime', 'is not', null)
       .where('assets.updatedAt', '<=', updatedUntil)
       .$if(!!lastId, (qb) => qb.where('assets.id', '>', lastId!))
       .orderBy('assets.id')
@@ -1040,9 +930,6 @@ export class AssetRepository {
       .select((eb) => eb.fn.toJson(eb.table('stacked_assets')).as('stack'))
       .where('assets.ownerId', '=', anyUuid(options.userIds))
       .where('assets.isVisible', '=', true)
-      .where('assets.fileCreatedAt', 'is not', null)
-      .where('assets.fileModifiedAt', 'is not', null)
-      .where('assets.localDateTime', 'is not', null)
       .where('assets.updatedAt', '>', options.updatedAfter)
       .limit(options.limit)
       .execute() as any as Promise<AssetEntity[]>;
