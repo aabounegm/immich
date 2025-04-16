@@ -112,10 +112,14 @@
       onVideoStarted();
     }}
   >
-    <media-provider></media-provider>
+    <media-provider>
+      <media-poster
+        class="vds-poster"
+        src={getAssetThumbnailUrl({ id: assetId, size: AssetMediaSize.Preview, cacheKey })}
+      ></media-poster>
+    </media-provider>
     <media-video-layout noScrubGesture smallWhen="never"></media-video-layout>
   </media-player>
-
   {#if isFaceEditMode.value}
     <FaceEditor htmlElement={videoElement} {containerWidth} {containerHeight} {assetId} />
   {/if}
