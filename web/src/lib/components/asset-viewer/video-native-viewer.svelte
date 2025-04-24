@@ -71,7 +71,7 @@
 >
   {// vidstack is missing some types for svelte5 event syntax: onauto-play-fail
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  /* @ts-ignore */ void 0}
+  /* @ts-ignore */ undefined}
   <media-player
     class="h-full w-full"
     bind:this={player}
