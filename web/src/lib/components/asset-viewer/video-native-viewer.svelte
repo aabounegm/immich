@@ -1,19 +1,19 @@
 <script lang="ts">
+  import FaceEditor from '$lib/components/asset-viewer/face-editor/face-editor.svelte';
+  import VideoLayout from '$lib/components/asset-viewer/video-viewer/video-layout.svelte';
+  import { isFaceEditMode } from '$lib/stores/face-edit.svelte';
   import { loopVideo as loopVideoPreference, videoViewerMuted, videoViewerVolume } from '$lib/stores/preferences.store';
   import { getAssetPlaybackUrl, getAssetThumbnailUrl } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
   import { AssetMediaSize } from '@immich/sdk';
-  import { swipe } from 'svelte-gestures';
+  import { tick } from 'svelte';
   import type { SwipeCustomEvent } from 'svelte-gestures';
-  import { fade } from 'svelte/transition';
+  import { swipe } from 'svelte-gestures';
   import { t } from 'svelte-i18n';
-  import { isFaceEditMode } from '$lib/stores/face-edit.svelte';
-  import FaceEditor from '$lib/components/asset-viewer/face-editor/face-editor.svelte';
+  import { fade } from 'svelte/transition';
+  import type { MediaAutoPlayFailEvent, MediaVolumeChangeEvent } from 'vidstack';
   import 'vidstack/bundle';
   import type { MediaPlayerElement } from 'vidstack/elements';
-  import type { MediaVolumeChangeEvent, MediaAutoPlayFailEvent } from 'vidstack';
-  import { tick } from 'svelte';
-
   interface Props {
     assetId: string;
     loopVideo: boolean;
@@ -118,7 +118,8 @@
         src={getAssetThumbnailUrl({ id: assetId, size: AssetMediaSize.Preview, cacheKey })}
       ></media-poster>
     </media-provider>
-    <media-video-layout noScrubGesture smallWhen="never"></media-video-layout>
+    <VideoLayout />
+    <!-- <media-video-layout noScrubGesture smallWhen="never"></media-video-layout> -->
   </media-player>
   {#if isFaceEditMode.value}
     <FaceEditor htmlElement={videoElement} {containerWidth} {containerHeight} {assetId} />
