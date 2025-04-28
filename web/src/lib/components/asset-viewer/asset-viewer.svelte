@@ -416,6 +416,10 @@
       handlePromiseError(handleGetAllAlbums());
     }
   });
+  let controlsVisible = $state(true);
+  const onControlsChange = ({ controlsVisible: visible }: { controlsVisible: boolean }) => {
+    controlsVisible = visible;
+  };
 </script>
 
 <svelte:document bind:fullscreenElement />
@@ -427,7 +431,12 @@
 >
   <!-- Top navigation bar -->
   {#if $slideshowState === SlideshowState.None && !isShowEditor}
-    <div class="z-[1002] col-span-4 col-start-1 row-span-1 row-start-1 transition-transform">
+    <div
+      class={[
+        { 'opacity-100': controlsVisible },
+        'z-[1002] col-span-4 col-start-1 row-span-1 row-start-1 transition-transform to-transparent opacity-0 transition-opacity ',
+      ]}
+    >
       <AssetViewerNavBar
         {asset}
         {album}
@@ -456,7 +465,12 @@
   {/if}
 
   {#if $slideshowState === SlideshowState.None && showNavigation && !isShowEditor}
-    <div class="z-[1001] my-auto column-span-1 col-start-1 row-span-full row-start-1 justify-self-start">
+    <div
+      class={[
+        { 'opacity-100': controlsVisible },
+        'to-transparent opacity-0 transition-opacity z-[1001] my-auto column-span-1 col-start-1 row-span-full row-start-1 justify-self-start',
+      ]}
+    >
       <PreviousAssetAction onPreviousAsset={() => navigateAsset('previous')} />
     </div>
   {/if}
@@ -498,6 +512,7 @@
             onNextAsset={() => navigateAsset('next')}
             onVideoEnded={() => navigateAsset()}
             onVideoStarted={handleVideoStarted}
+            {onControlsChange}
           />
         {/if}
       {/key}
@@ -513,6 +528,7 @@
               onPreviousAsset={() => navigateAsset('previous')}
               onNextAsset={() => navigateAsset('next')}
               onVideoEnded={() => (shouldPlayMotionPhoto = false)}
+              {onControlsChange}
             />
           {:else if asset.exifInfo?.projectionType === ProjectionType.EQUIRECTANGULAR || (asset.originalPath && asset.originalPath
                 .toLowerCase()
@@ -542,6 +558,7 @@
             onNextAsset={() => navigateAsset('next')}
             onVideoEnded={() => navigateAsset()}
             onVideoStarted={handleVideoStarted}
+            {onControlsChange}
           />
         {/if}
         {#if $slideshowState === SlideshowState.None && isShared && ((album && album.isActivityEnabled) || numberOfComments > 0)}
@@ -560,7 +577,12 @@
   </div>
 
   {#if $slideshowState === SlideshowState.None && showNavigation && !isShowEditor}
-    <div class="z-[1001] my-auto col-span-1 col-start-4 row-span-full row-start-1 justify-self-end">
+    <div
+      class={[
+        { 'opacity-100': controlsVisible },
+        'to-transparent opacity-0 transition-opacity z-[1001] my-auto col-span-1 col-start-4 row-span-full row-start-1 justify-self-end',
+      ]}
+    >
       <NextAssetAction onNextAsset={() => navigateAsset('next')} />
     </div>
   {/if}

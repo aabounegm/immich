@@ -12,6 +12,7 @@
     onNextAsset?: () => void;
     onVideoEnded?: () => void;
     onVideoStarted?: () => void;
+    onControlsChange?: ({ controlsVisible }: { controlsVisible: boolean }) => void;
   }
 
   let {
@@ -23,11 +24,21 @@
     onNextAsset,
     onVideoEnded,
     onVideoStarted,
+    onControlsChange,
   }: Props = $props();
 </script>
 
 {#if projectionType === ProjectionType.EQUIRECTANGULAR}
   <VideoPanoramaViewer {assetId} />
 {:else}
-  <VideoNativeViewer {loopVideo} {cacheKey} {assetId} {onPreviousAsset} {onNextAsset} {onVideoEnded} {onVideoStarted} />
+  <VideoNativeViewer
+    {loopVideo}
+    {cacheKey}
+    {assetId}
+    {onPreviousAsset}
+    {onNextAsset}
+    {onVideoEnded}
+    {onVideoStarted}
+    {onControlsChange}
+  />
 {/if}

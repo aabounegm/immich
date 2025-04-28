@@ -12,7 +12,10 @@
   import { t } from 'svelte-i18n';
   import { fade } from 'svelte/transition';
   import type { MediaAutoPlayFailEvent, MediaVolumeChangeEvent } from 'vidstack';
-  import 'vidstack/bundle';
+  import 'vidstack/player/styles/base.css';
+  import 'vidstack/player';
+  import 'vidstack/player/ui';
+
   import type { MediaPlayerElement } from 'vidstack/elements';
   interface Props {
     assetId: string;
@@ -22,6 +25,7 @@
     onNextAsset?: () => void;
     onVideoEnded?: () => void;
     onVideoStarted?: () => void;
+    onControlsChange?: ({ controlsVisible }: { controlsVisible: boolean }) => void;
   }
 
   let {
@@ -32,6 +36,7 @@
     onNextAsset = () => {},
     onVideoEnded = () => {},
     onVideoStarted = () => {},
+    onControlsChange = () => {},
   }: Props = $props();
 
   let player: MediaPlayerElement | undefined = $state();
@@ -73,15 +78,19 @@
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   /* @ts-ignore */ undefined}
   <media-player
-    class="h-full w-full"
+    class="h-full w-full ring-media-focus data-[focus]:ring-4"
     bind:this={player}
     src={assetFileUrl}
     poster={getAssetThumbnailUrl({ id: assetId, size: AssetMediaSize.Preview, cacheKey })}
     {logLevel}
     {streamType}
     loop={$loopVideoPreference && loopVideo}
-    autoPlay
     playsInline
+    autoPlay
+    load="idle"
+    oncontrols-change={(e: CustomEvent) => {
+      onControlsChange?.({ controlsVisible: e.detail as boolean });
+    }}
     muted={forceMuted || $videoViewerMuted}
     onauto-play-fail={async (e: MediaAutoPlayFailEvent) => {
       if (e.detail.error.name === 'NotAllowedError') {
@@ -114,7 +123,7 @@
   >
     <media-provider>
       <media-poster
-        class="vds-poster"
+        class="absolute inset-0 block h-full w-full rounded-md opacity-0 transition-opacity data-[visible]:opacity-100"
         src={getAssetThumbnailUrl({ id: assetId, size: AssetMediaSize.Preview, cacheKey })}
       ></media-poster>
     </media-provider>
@@ -125,3 +134,16 @@
     <FaceEditor htmlElement={videoElement} {containerWidth} {containerHeight} {assetId} />
   {/if}
 </div>
+
+<style>
+  :global {
+    media-player video {
+      height: 100%;
+    }
+    media-poster img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+</style>
